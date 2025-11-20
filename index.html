@@ -1,0 +1,173 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Simulador Avançado de Toques</title>
+<link rel="manifest" href="manifest.json">
+<style>
+body { font-family: Arial; text-align: center; margin: 20px; }
+#area {
+  width: 90%; height: 350px; border: 2px solid #000;
+  border-radius: 12px; background: #f2f2f2;
+  margin: 20px auto; position: relative;
+}
+#alvo {
+  width: 40px; height: 40px; background: red;
+  border-radius: 50%; position: absolute; left: 150px; top: 150px;
+  touch-action: none;
+}
+button {
+  padding: 10px; font-size: 16px; border-radius: 10px;
+  background: #007bff; color: white; border: none; margin: 5px;
+}
+</style>
+</head>
+<body>
+
+<h2>Simulador Avançado de Toques</h2>
+<p>Arraste o círculo para definir o ponto base.</p>
+
+<div id="area">
+    <div id="alvo"></div>
+</div>
+
+<button onclick="simularToque()">Toque Único</button>
+<button onclick="simularToqueDuplo()">Toque Duplo</button>
+<button onclick="swipe()">Swipe Automático</button>
+<button onclick="autoClicker()">Auto-Clicker (5x)</button>
+<button onclick="multiPontos()">Toque em 3 Pontos</button>
+<button onclick="macroSequencia()">Executar Macro</button>
+
+<br><br>
+Delay (ms): <input id="delay" type="number" value="100" style="width:80px;">
+
+<script>
+// Register PWA
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js');
+
+// Drag system
+let alvo = document.getElementById("alvo");
+let area = document.getElementById("area");
+let offsetX, offsetY;
+
+alvo.addEventListener("touchstart", e => {
+    let t = e.touches[0];
+    offsetX = t.clientX - alvo.offsetLeft;
+    offsetY = t.clientY - alvo.offsetTop;
+});
+
+alvo.addEventListener("touchmove", e => {
+    e.preventDefault();
+    let t = e.touches[0];
+    let newX = t.clientX - offsetX;
+    let newY = t.clientY - offsetY;
+
+    newX = Math.max(0, Math.min(newX, area.clientWidth - alvo.clientWidth));
+    newY = Math.max(0, Math.min(newY, area.clientHeight - alvo.clientHeight));
+
+    alvo.style.left = newX + "px";
+    alvo.style.top = newY + "px";
+});
+
+// Create touch event
+function gerarToque(x, y, type) {
+    let rect = area.getBoundingClientRect();
+
+    let touchObj = new Touch({
+        identifier: Date.now(),
+        target: area,
+        clientX: rect.left + x,
+        clientY: rect.top + y,
+        radiusX: 15, radiusY: 15, rotationAngle: 0, force: type === "start" ? 1 : 0
+    });
+
+    let evento = new TouchEvent("touch" + type, {
+        cancelable: true,
+        bubbles: true,
+        touches: type === "start" ? [touchObj] : [],
+        targetTouches: type === "start" ? [touchObj] : [],
+        changedTouches: [touchObj]
+    });
+
+    area.dispatchEvent(evento);
+}
+
+// Main calculated point
+function pontoBase() {
+    return {
+        x: alvo.offsetLeft + 20,
+        y: alvo.offsetTop + 20
+    };
+}
+
+// Simulate single tap
+function simularToque() {
+    let p = pontoBase();
+    gerarToque(p.x, p.y, "start");
+    setTimeout(() => gerarToque(p.x, p.y, "end"), 80);
+}
+
+// Double tap
+function simularToqueDuplo() {
+    simularToque();
+    setTimeout(simularToque, 150);
+}
+
+// Auto clicker
+function autoClicker() {
+    let delay = parseInt(document.getElementById("delay").value);
+    let count = 0;
+    let intervalo = setInterval(() => {
+        simularToque();
+        count++;
+        if (count >= 5) clearInterval(intervalo);
+    }, delay);
+}
+
+// Three-point touch
+function multiPontos() {
+    let base = pontoBase();
+
+    let pts = [
+        {x: base.x, y: base.y},
+        {x: base.x + 50, y: base.y + 30},
+        {x: base.x - 50, y: base.y - 30}
+    ];
+
+    pts.forEach(p => {
+        gerarToque(p.x, p.y, "start");
+        setTimeout(() => gerarToque(p.x, p.y, "end"), 100);
+    });
+}
+
+// Swipe
+function swipe() {
+    let p = pontoBase();
+    let steps = 20;
+    for (let i=0; i<=steps; i++) {
+        setTimeout(() => {
+            gerarToque(p.x + i*5, p.y, "start");
+            if (i==steps) gerarToque(p.x + i*5, p.y, "end");
+        }, i * 30);
+    }
+}
+
+// Macro sequence
+function macroSequencia() {
+    let delay = parseInt(document.getElementById("delay").value);
+    let seq = [
+        () => simularToque(),
+        () => simularToqueDuplo(),
+        () => swipe(),
+        () => multiPontos()
+    ];
+
+    seq.forEach((fn, i) => {
+        setTimeout(fn, i * delay * 3);
+    });
+}
+
+</script>
+</body>
+</html>
